@@ -2687,9 +2687,7 @@ const BALLOT_DIVISOR = 12_500_000; // zatoshi per ballot
 function ballotsToZEC(ballots: number): string {
   const zatoshi = ballots * BALLOT_DIVISOR;
   const zec = zatoshi / 1e8;
-  // Truncate to 2 decimal places (match iOS banker's rounding behavior)
-  const truncated = Math.floor(zec * 100) / 100;
-  return `${truncated.toFixed(2)} ZEC`;
+  return `${zec.toFixed(3)} ZEC`;
 }
 
 function base64ToHex(b64: string): string {
