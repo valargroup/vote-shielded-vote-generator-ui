@@ -127,12 +127,24 @@ function encodeVoteOption(opt: { index: number; label: string }): ProtoWriter {
   return w;
 }
 
-// message Proposal { uint32 id = 1; string title = 2; string description = 3; repeated VoteOption options = 4; }
+// message OptionGroup { uint32 id = 1; string label = 2; repeated uint32 option_indices = 3; }
+function encodeOptionGroup(grp: { id: number; label: string; option_indices: number[] }): ProtoWriter {
+  const w = ProtoWriter.create();
+  if (grp.id !== 0) w.uint32(8).uint32(grp.id);
+  if (grp.label !== "") w.uint32(18).string(grp.label);
+  for (const idx of grp.option_indices) {
+    w.uint32(24).uint32(idx);
+  }
+  return w;
+}
+
+// message Proposal { uint32 id = 1; string title = 2; string description = 3; repeated VoteOption options = 4; repeated OptionGroup option_groups = 5; }
 function encodeProposal(p: {
   id: number;
   title: string;
   description: string;
   options: Array<{ index: number; label: string }>;
+  option_groups?: Array<{ id: number; label: string; option_indices: number[] }>;
 }): ProtoWriter {
   const w = ProtoWriter.create();
   if (p.id !== 0) w.uint32(8).uint32(p.id);                // field 1, wire 0
@@ -140,6 +152,9 @@ function encodeProposal(p: {
   if (p.description !== "") w.uint32(26).string(p.description); // field 3, wire 2
   for (const opt of p.options) {
     w.sub(4, encodeVoteOption(opt));                         // field 4, wire 2
+  }
+  for (const grp of p.option_groups ?? []) {
+    w.sub(5, encodeOptionGroup(grp));                        // field 5, wire 2
   }
   return w;
 }
@@ -160,6 +175,7 @@ export interface CreateVotingSessionValue {
     title: string;
     description: string;
     options: Array<{ index: number; label: string }>;
+    option_groups?: Array<{ id: number; label: string; option_indices: number[] }>;
   }>;
   description: string;
   title: string;
@@ -453,6 +469,7 @@ function computeProposalsHash(
     title: string;
     description: string;
     options: Array<{ index: number; label: string }>;
+    option_groups?: Array<{ id: number; label: string; option_indices: number[] }>;
   }>,
 ): Uint8Array {
   const canonical = JSON.stringify(
@@ -461,6 +478,11 @@ function computeProposalsHash(
       title: p.title,
       description: p.description,
       options: p.options.map((o) => ({ index: o.index, label: o.label })),
+      option_groups: (p.option_groups ?? []).map((g) => ({
+        id: g.id,
+        label: g.label,
+        option_indices: g.option_indices,
+      })),
     })),
   );
   const encoded = new TextEncoder().encode(canonical);
@@ -555,6 +577,7 @@ export async function createVotingSession(
       title: string;
       description: string;
       options: Array<{ index: number; label: string }>;
+      option_groups?: Array<{ id: number; label: string; option_indices: number[] }>;
     }>;
   },
 ): Promise<BroadcastResult> {

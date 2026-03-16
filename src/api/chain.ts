@@ -108,11 +108,20 @@ export interface VoteSummaryOptionResponse {
   total_value?: number | string;  // uint64: encoding/json serializes as number
 }
 
+export interface VoteSummaryGroupResponse {
+  id?: number;
+  label?: string;
+  option_indices?: number[];
+  ballot_count?: number | string;
+  total_value?: number | string;
+}
+
 export interface VoteSummaryProposalResponse {
   id?: number;
   title?: string;
   description?: string;
   options?: VoteSummaryOptionResponse[];
+  groups?: VoteSummaryGroupResponse[];
 }
 
 export interface VoteSummaryResponse {
