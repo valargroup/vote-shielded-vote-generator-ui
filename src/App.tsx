@@ -3106,9 +3106,17 @@ function VoteStatusView({ expectRoundCount }: { expectRoundCount?: number | null
                               .map((o) => o.label ?? `Option ${o.index}`)
                               .join(", ");
 
-                            const allValues = options.map((o) =>
-                              isFinalized ? Number(o.total_value ?? 0) : Number(o.ballot_count ?? 0)
-                            );
+                            const allValues: number[] = [];
+                            for (const item of displayItems) {
+                              if (item.type === "standalone") {
+                                allValues.push(isFinalized ? Number(item.opt.total_value ?? 0) : Number(item.opt.ballot_count ?? 0));
+                              } else {
+                                allValues.push(isFinalized ? Number(item.group.total_value ?? 0) : Number(item.group.ballot_count ?? 0));
+                                for (const mo of item.memberOpts) {
+                                  allValues.push(isFinalized ? Number(mo.total_value ?? 0) : Number(mo.ballot_count ?? 0));
+                                }
+                              }
+                            }
                             const maxVal = Math.max(1, ...allValues);
 
                             return (
@@ -3154,12 +3162,12 @@ function VoteStatusView({ expectRoundCount }: { expectRoundCount?: number | null
                                           </div>
                                         </div>
                                         <div className="ml-4 mt-2.5 space-y-3">
-                                          {memberOpts.map((mo, mi) => {
+                                          {memberOpts.map((mo) => {
                                             const mShares = Number(mo.ballot_count ?? 0);
                                             const mValue = Number(mo.total_value ?? 0);
                                             const mBar = isFinalized ? mValue : mShares;
                                             const mPct = (mBar / maxVal) * 100;
-                                            const mColor = optionColor(topLevelCount + mi, topLevelCount + memberOpts.length);
+                                            const mColor = colorByOptionIdx.get(mo.index ?? 0) ?? optionColor(displayIdx, topLevelCount);
                                             const mIsWinner = winnerIndices.has(mo.index ?? 0);
                                             return (
                                               <div key={mo.index} className="space-y-0.5">
