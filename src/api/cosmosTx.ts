@@ -1,9 +1,9 @@
 // Client-side Cosmos SDK transaction signing and REST broadcasting.
 //
-// MsgSetVoteManager and MsgCreateVotingSession are standard Cosmos SDK
-// transactions. Instead of relying on a server-side handler, we sign them
-// directly in the browser using cosmjs and broadcast via the chain's REST
-// API (/cosmos/tx/v1beta1/txs).
+// MsgSetVoteManager, MsgCreateVotingSession, and MsgAuthorizedSend are
+// standard Cosmos SDK transactions. Instead of relying on a server-side
+// handler, we sign them directly in the browser using cosmjs and broadcast
+// via the chain's REST API (/cosmos/tx/v1beta1/txs).
 
 import type { OfflineDirectSigner } from "@cosmjs/proto-signing";
 import {
