@@ -231,35 +231,36 @@ const MsgUnjailProto = {
   },
 };
 
-// ── Protobuf type: MsgSend (cosmos.bank.v1beta1) ────────────────
-
-// message Coin { string denom = 1; string amount = 2; }
-// message MsgSend { string from_address = 1; string to_address = 2; repeated Coin amount = 3; }
-const MsgSendProto = {
+// ── Protobuf type: MsgAuthorizedSend (svote.v1) ─────────────────
+// Bank MsgSend is disabled at the ante-handler level; all transfers
+// must use MsgAuthorizedSend with role-based authorization.
+//
+// message MsgAuthorizedSend {
+//   string from_address = 1; string to_address = 2;
+//   string amount = 3; string denom = 4;
+// }
+const MsgAuthorizedSendProto = {
   encode(
-    message: { fromAddress: string; toAddress: string; amount: Array<{ denom: string; amount: string }> },
+    message: { fromAddress: string; toAddress: string; amount: string; denom: string },
     writer: ProtoWriter = ProtoWriter.create(),
   ): ProtoWriter {
     if (message.fromAddress !== "") writer.uint32(10).string(message.fromAddress); // field 1
     if (message.toAddress !== "")   writer.uint32(18).string(message.toAddress);   // field 2
-    for (const coin of message.amount) {
-      const coinWriter = ProtoWriter.create();
-      if (coin.denom !== "")  coinWriter.uint32(10).string(coin.denom);  // Coin field 1
-      if (coin.amount !== "") coinWriter.uint32(18).string(coin.amount); // Coin field 2
-      writer.sub(3, coinWriter);                                          // field 3, repeated
-    }
+    if (message.amount !== "")      writer.uint32(26).string(message.amount);      // field 3
+    if (message.denom !== "")       writer.uint32(34).string(message.denom);       // field 4
     return writer;
   },
-  decode(): { fromAddress: string; toAddress: string; amount: Array<{ denom: string; amount: string }> } {
+  decode(): { fromAddress: string; toAddress: string; amount: string; denom: string } {
     throw new Error("decode not implemented");
   },
   fromPartial(
-    object: Partial<{ fromAddress: string; toAddress: string; amount: Array<{ denom: string; amount: string }> }>,
-  ): { fromAddress: string; toAddress: string; amount: Array<{ denom: string; amount: string }> } {
+    object: Partial<{ fromAddress: string; toAddress: string; amount: string; denom: string }>,
+  ): { fromAddress: string; toAddress: string; amount: string; denom: string } {
     return {
       fromAddress: object.fromAddress ?? "",
       toAddress: object.toAddress ?? "",
-      amount: object.amount ?? [],
+      amount: object.amount ?? "",
+      denom: object.denom ?? "",
     };
   },
 };
@@ -275,7 +276,7 @@ function createRegistry(): Registry {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   registry.register("/cosmos.slashing.v1beta1.MsgUnjail", MsgUnjailProto as any);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  registry.register("/cosmos.bank.v1beta1.MsgSend", MsgSendProto as any);
+  registry.register("/svote.v1.MsgAuthorizedSend", MsgAuthorizedSendProto as any);
   return registry;
 }
 
@@ -593,10 +594,11 @@ export async function createVotingSession(
 }
 
 /**
- * Sign and broadcast a cosmos.bank.v1beta1.MsgSend transaction.
+ * Sign and broadcast an svote.v1.MsgAuthorizedSend transaction.
  *
  * Used by the "Fund validator" UI to transfer stake tokens from the
- * bootstrap operator to a validator address.
+ * vote manager to a validator address. Only the vote manager (or bonded
+ * validators sending to each other / the manager) is authorized.
  *
  * @param amountUsvote - amount in micro-tokens (usvote), e.g. "1000000" for 1 SVOTE
  */
@@ -612,11 +614,12 @@ export async function fundValidator(
     signer,
     messages: [
       {
-        typeUrl: "/cosmos.bank.v1beta1.MsgSend",
+        typeUrl: "/svote.v1.MsgAuthorizedSend",
         value: {
           fromAddress: account.address,
           toAddress,
-          amount: [{ denom: "usvote", amount: amountUsvote }],
+          amount: amountUsvote,
+          denom: "usvote",
         },
       },
     ],
