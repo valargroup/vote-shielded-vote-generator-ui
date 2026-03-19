@@ -224,6 +224,18 @@ export default async function handler(req: Request) {
     );
     updatedApproved.push(entry);
 
+    // Clean up any pending-registration entry for this validator (it may have
+    // been added on a previous attempt when the chain wasn't reachable yet).
+    const currentPending = (await get('pending-registrations') as PendingRegistration[] | null) ?? [];
+    const cleanedPending = currentPending.filter(
+      (p) => p.operator_address !== operator_address && p.url !== url,
+    );
+
+    // Record an initial pulse so the validator shows as active immediately
+    // (the next heartbeat won't fire until the 2-hour ticker).
+    const pulses = (await get('server-pulses') as Record<string, number> | null) ?? {};
+    pulses[url] = now;
+
     try {
       const resp = await fetch(
         `https://api.vercel.com/v1/edge-config/${EDGE_CONFIG_ID}/items`,
@@ -237,6 +249,8 @@ export default async function handler(req: Request) {
             items: [
               { operation: 'upsert', key: 'voting-config', value: currentConfig },
               { operation: 'upsert', key: 'approved-servers', value: updatedApproved },
+              { operation: 'upsert', key: 'pending-registrations', value: cleanedPending },
+              { operation: 'upsert', key: 'server-pulses', value: pulses },
             ],
           }),
         },
