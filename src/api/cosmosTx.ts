@@ -152,9 +152,6 @@ export interface CreateVotingSessionValue {
   voteEndTime: number;
   nullifierImtRoot: Uint8Array;
   ncRoot: Uint8Array;
-  vkZkp1: Uint8Array;
-  vkZkp2: Uint8Array;
-  vkZkp3: Uint8Array;
   proposals: Array<{
     id: number;
     title: string;
@@ -178,14 +175,11 @@ const MsgCreateVotingSessionProto = {
     if (m.voteEndTime !== 0)           writer.uint32(40).uint64(m.voteEndTime);          // 5 uint64
     if (m.nullifierImtRoot.length)     writer.uint32(50).bytes(m.nullifierImtRoot);      // 6 bytes
     if (m.ncRoot.length)               writer.uint32(58).bytes(m.ncRoot);                // 7 bytes
-    if (m.vkZkp1.length)              writer.uint32(66).bytes(m.vkZkp1);                // 8 bytes
-    if (m.vkZkp2.length)              writer.uint32(74).bytes(m.vkZkp2);                // 9 bytes
-    if (m.vkZkp3.length)              writer.uint32(82).bytes(m.vkZkp3);                // 10 bytes
     for (const p of m.proposals) {
-      writer.sub(11, encodeProposal(p));                                                 // 11 repeated
+      writer.sub(8, encodeProposal(p));                                                  // 8 repeated
     }
-    if (m.description !== "")          writer.uint32(98).string(m.description);          // 12 string
-    if (m.title !== "")                writer.uint32(106).string(m.title);               // 13 string
+    if (m.description !== "")          writer.uint32(74).string(m.description);          // 9 string
+    if (m.title !== "")                writer.uint32(82).string(m.title);                // 10 string
     return writer;
   },
   decode(): CreateVotingSessionValue {
@@ -200,9 +194,6 @@ const MsgCreateVotingSessionProto = {
       voteEndTime: object.voteEndTime ?? 0,
       nullifierImtRoot: object.nullifierImtRoot ?? new Uint8Array(),
       ncRoot: object.ncRoot ?? new Uint8Array(),
-      vkZkp1: object.vkZkp1 ?? new Uint8Array(),
-      vkZkp2: object.vkZkp2 ?? new Uint8Array(),
-      vkZkp3: object.vkZkp3 ?? new Uint8Array(),
       proposals: object.proposals ?? [],
       description: object.description ?? "",
       title: object.title ?? "",
@@ -428,19 +419,6 @@ async function signAndBroadcast({
   return confirmTx(apiBase, broadcastResult.tx_hash);
 }
 
-// ── Stub byte fields ────────────────────────────────────────────
-// Matching the e2e test pattern (see e2e-tests/src/payloads.rs).
-
-function filledBytes(byte: number, len: number): Uint8Array {
-  const arr = new Uint8Array(len);
-  arr.fill(byte);
-  return arr;
-}
-
-const STUB_VK_ZKP1            = filledBytes(0xf1, 64);
-const STUB_VK_ZKP2            = filledBytes(0xf2, 64);
-const STUB_VK_ZKP3            = filledBytes(0xf3, 64);
-
 /** Compute a SHA-256 hash of the serialized proposals for use as proposals_hash.
  *  This ensures each round with different proposals gets a unique vote_round_id
  *  (the chain derives round ID from snapshot_height, blockhash, proposals_hash,
@@ -581,9 +559,6 @@ export async function createVotingSession(
           voteEndTime: params.voteEndTime,
           nullifierImtRoot: snapshot.nullifierImtRoot,
           ncRoot: snapshot.ncRoot,
-          vkZkp1: STUB_VK_ZKP1,
-          vkZkp2: STUB_VK_ZKP2,
-          vkZkp3: STUB_VK_ZKP3,
           proposals: params.proposals,
           description: params.description,
           title: params.title,
