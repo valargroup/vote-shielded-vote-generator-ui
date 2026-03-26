@@ -206,7 +206,15 @@ function App() {
       if (p.allowAbstain) {
         options.push({ index: options.length, label: "Abstain" });
       }
-      return { id: i + 1, title: p.title, description: p.description, options };
+      const optionIndexByUid = new Map(p.options.map((opt, j) => [opt.id, j]));
+      const option_groups = (p.optionGroups ?? [])
+        .filter((g) => g.optionIds.length >= 2 && g.label)
+        .map((g, gi) => ({
+          id: gi,
+          label: g.label,
+          option_indices: g.optionIds.map((uid) => optionIndexByUid.get(uid) ?? 0),
+        }));
+      return { id: i + 1, title: p.title, description: p.description, options, option_groups };
     });
 
     setPublishStatus("publishing");
@@ -254,6 +262,11 @@ function App() {
     setSection("builder");
   }, [store]);
 
+  const handleCreateGroupedSample = useCallback(() => {
+    store.createGroupedSampleRound();
+    setSection("builder");
+  }, [store]);
+
   return (
     <div className="flex h-screen overflow-hidden bg-surface-0">
       <input
@@ -282,6 +295,7 @@ function App() {
           <AboutPage
             onCreateRound={handleCreateRound}
             onOpenSample={handleCreateSampleRound}
+            onOpenGroupedSample={handleCreateGroupedSample}
           />
         )}
 
@@ -701,9 +715,11 @@ function BuilderView({
 function AboutPage({
   onCreateRound,
   onOpenSample,
+  onOpenGroupedSample,
 }: {
   onCreateRound: () => void;
   onOpenSample: () => void;
+  onOpenGroupedSample: () => void;
 }) {
   return (
     <div className="flex-1 overflow-y-auto">
@@ -752,6 +768,24 @@ function AboutPage({
               <p className="text-[11px] text-text-muted mt-0.5">
                 Create a new draft pre-loaded with 3 sample NU7 proposals
                 to see how the builder works.
+              </p>
+            </div>
+          </button>
+
+          <button
+            onClick={onOpenGroupedSample}
+            className="w-full flex items-start gap-3 bg-surface-1 border border-border-subtle hover:border-accent/30 rounded-xl p-4 text-left transition-colors cursor-pointer group"
+          >
+            <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center shrink-0 mt-0.5">
+              <FileText size={16} className="text-purple-400" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-text-primary group-hover:text-accent-glow transition-colors">
+                Grouped voting sample (Sprout sunset)
+              </p>
+              <p className="text-[11px] text-text-muted mt-0.5">
+                Multi-choice proposal with option groups — sub-options under
+                "Fixed date" are tallied together as one camp.
               </p>
             </div>
           </button>
@@ -2996,12 +3030,8 @@ function VoteStatusView({ expectRoundCount }: { expectRoundCount?: number | null
                         return winnerIndices.size > 1;
                       })();
 
-                      // Result color for banner — uses the option palette
-                      const winnerColor = (() => {
-                        if (winnerIndices.size === 0) return optionColor(0, options.length);
-                        const winnerIdx = [...winnerIndices][0];
-                        return optionColor(winnerIdx, options.length);
-                      })();
+                      // winnerColor is computed inside the display items block below
+                      // (needs the display-order color map to avoid mismatched colors)
 
                       const totalValue = isFinalized
                         ? options.reduce((sum, o) => sum + Number(o.total_value ?? 0), 0)
@@ -3030,82 +3060,175 @@ function VoteStatusView({ expectRoundCount }: { expectRoundCount?: number | null
                             </p>
                           )}
 
-                          {/* Result banner — only when finalized */}
-                          {isFinalized && winnerIndices.size > 0 && (
-                            <div
-                              className="flex items-center gap-1.5 mb-2 px-2 py-1 rounded-md"
-                              style={{ backgroundColor: `${winnerColor}18` }}
-                            >
-                              <span className="text-xs" style={{ color: winnerColor }}>{isTied ? "⚖" : "✓"}</span>
-                              <span className="text-[11px] font-semibold" style={{ color: winnerColor }}>
-                                {isTied ? "Tie: " : "Result: "}
-                                {options
-                                  .filter((o) => winnerIndices.has(o.index ?? 0))
-                                  .map((o) => o.label ?? `Option ${o.index}`)
-                                  .join(", ")}
-                              </span>
-                            </div>
-                          )}
+                          {/* Option / group bars + result banner */}
+                          {(() => {
+                            const groups = prop.groups ?? [];
+                            const groupedIndices = new Set(groups.flatMap((g) => g.option_indices ?? []));
+                            const groupByFirst = new Map(groups.map((g) => [(g.option_indices ?? [])[0], g]));
 
-                          {/* Option bars */}
-                          <div className="space-y-3">
-                            {options.map((opt) => {
-                              const shares = Number(opt.ballot_count ?? 0);
-                              const value = Number(opt.total_value ?? 0);
-                              const barValue = isFinalized ? value : shares;
+                            type DisplayItem = { key: string; type: "standalone"; opt: typeof options[0] } | { key: string; type: "group"; group: typeof groups[0]; memberOpts: typeof options };
+                            const displayItems: DisplayItem[] = [];
+                            for (const opt of options) {
+                              const idx = opt.index ?? 0;
+                              const group = groupByFirst.get(idx);
+                              if (group) {
+                                const memberOpts = (group.option_indices ?? []).map((gi) => options.find((o) => (o.index ?? 0) === gi)).filter(Boolean) as typeof options;
+                                displayItems.push({ key: `g${group.id}`, type: "group", group, memberOpts });
+                              } else if (!groupedIndices.has(idx)) {
+                                displayItems.push({ key: `o${idx}`, type: "standalone", opt });
+                              }
+                            }
+                            const topLevelCount = displayItems.length;
 
-                              // Compute bar width relative to max in this proposal.
-                              const allValues = options.map((o) =>
-                                isFinalized
-                                  ? Number(o.total_value ?? 0)
-                                  : Number(o.ballot_count ?? 0)
-                              );
-                              const maxVal = Math.max(1, ...allValues);
-                              const pct = (barValue / maxVal) * 100;
-                              const isWinner = winnerIndices.has(opt.index ?? 0);
+                            // Build a map from raw option index to its display color
+                            const colorByOptionIdx = new Map<number, string>();
+                            let subOffset = topLevelCount;
+                            displayItems.forEach((item, di) => {
+                              const dc = optionColor(di, topLevelCount);
+                              if (item.type === "standalone") {
+                                colorByOptionIdx.set(item.opt.index ?? 0, dc);
+                              } else {
+                                item.memberOpts.forEach((mo, mi) => {
+                                  colorByOptionIdx.set(mo.index ?? 0, optionColor(subOffset + mi, topLevelCount + item.memberOpts.length));
+                                });
+                                subOffset += item.memberOpts.length;
+                              }
+                            });
 
-                              const oColor = optionColor(opt.index ?? 0, options.length);
+                            const winnerColor = (() => {
+                              if (winnerIndices.size === 0) return optionColor(0, topLevelCount);
+                              const idx = [...winnerIndices][0];
+                              return colorByOptionIdx.get(idx) ?? optionColor(0, topLevelCount);
+                            })();
 
-                              return (
-                                <div key={opt.index} className="space-y-0.5">
-                                  <div className="flex items-center justify-between">
-                                    <span
-                                      className={`text-[11px] flex items-center gap-1.5 ${
-                                        isWinner ? "font-semibold" : "text-text-secondary"
-                                      }`}
-                                      style={isWinner ? { color: oColor } : undefined}
-                                    >
-                                      <span
-                                        className="w-2 h-2 rounded-full shrink-0 inline-block"
-                                        style={{ backgroundColor: oColor }}
-                                      />
-                                      {isWinner && (isTied ? "⚖ " : "✓ ")}
-                                      {opt.label ?? `Option ${opt.index}`}
-                                    </span>
-                                    <span className="text-[11px] font-mono text-text-primary">
-                                      {isFinalized ? (
-                                        <>{ballotsToZEC(value)}</>
-                                      ) : (
-                                        <>
-                                          {shares} share{shares !== 1 ? "s" : ""}
-                                        </>
-                                      )}
+                            const winnerLabel = options
+                              .filter((o) => winnerIndices.has(o.index ?? 0))
+                              .map((o) => o.label ?? `Option ${o.index}`)
+                              .join(", ");
+
+                            const allValues: number[] = [];
+                            for (const item of displayItems) {
+                              if (item.type === "standalone") {
+                                allValues.push(isFinalized ? Number(item.opt.total_value ?? 0) : Number(item.opt.ballot_count ?? 0));
+                              } else {
+                                allValues.push(isFinalized ? Number(item.group.total_value ?? 0) : Number(item.group.ballot_count ?? 0));
+                                for (const mo of item.memberOpts) {
+                                  allValues.push(isFinalized ? Number(mo.total_value ?? 0) : Number(mo.ballot_count ?? 0));
+                                }
+                              }
+                            }
+                            const maxVal = Math.max(1, ...allValues);
+
+                            return (
+                              <div className="space-y-3">
+                                {isFinalized && winnerIndices.size > 0 && (
+                                  <div
+                                    className="flex items-center gap-1.5 mb-3 px-2 py-1 rounded-md"
+                                    style={{ backgroundColor: `${winnerColor}18` }}
+                                  >
+                                    <span className="text-xs" style={{ color: winnerColor }}>{isTied ? "⚖" : "✓"}</span>
+                                    <span className="text-[11px] font-semibold" style={{ color: winnerColor }}>
+                                      {isTied ? "Tie: " : "Result: "}{winnerLabel}
                                     </span>
                                   </div>
-                                  <div className="h-1.5 bg-surface-3 rounded-full overflow-hidden">
-                                    <div
-                                      className="h-full rounded-full transition-all duration-500"
-                                      style={{
-                                        width: `${Math.max(barValue > 0 ? 2 : 0, pct)}%`,
-                                        backgroundColor: oColor,
-                                        opacity: isWinner ? 1 : 0.6,
-                                      }}
-                                    />
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
+                                )}
+                                {displayItems.map((item, displayIdx) => {
+                                  const dColor = optionColor(displayIdx, topLevelCount);
+
+                                  if (item.type === "group") {
+                                    const { group, memberOpts } = item;
+                                    const groupValue = Number(group.total_value ?? 0);
+                                    const groupShares = Number(group.ballot_count ?? 0);
+                                    const groupBar = isFinalized ? groupValue : groupShares;
+                                    const groupPct = (groupBar / maxVal) * 100;
+
+                                    return (
+                                      <div key={item.key} className="space-y-1">
+                                        <div className="space-y-0.5">
+                                          <div className="flex items-center justify-between">
+                                            <span className="text-[11px] text-text-secondary flex items-center gap-1.5">
+                                              <span className="w-2 h-2 rounded-full shrink-0 inline-block" style={{ backgroundColor: dColor }} />
+                                              {group.label ?? "Group"}
+                                            </span>
+                                            <span className="text-[11px] font-mono text-text-primary whitespace-nowrap shrink-0">
+                                              {isFinalized ? ballotsToZEC(groupValue) : `${groupShares} share${groupShares !== 1 ? "s" : ""}`}
+                                            </span>
+                                          </div>
+                                          <div className="h-1.5 bg-surface-3 rounded-full overflow-hidden">
+                                            <div
+                                              className="h-full rounded-full transition-all duration-500"
+                                              style={{ width: `${Math.max(groupBar > 0 ? 2 : 0, groupPct)}%`, backgroundColor: dColor, opacity: 0.8 }}
+                                            />
+                                          </div>
+                                        </div>
+                                        <div className="ml-4 mt-2.5 space-y-3">
+                                          {memberOpts.map((mo) => {
+                                            const mShares = Number(mo.ballot_count ?? 0);
+                                            const mValue = Number(mo.total_value ?? 0);
+                                            const mBar = isFinalized ? mValue : mShares;
+                                            const mPct = (mBar / maxVal) * 100;
+                                            const mColor = colorByOptionIdx.get(mo.index ?? 0) ?? optionColor(displayIdx, topLevelCount);
+                                            const mIsWinner = winnerIndices.has(mo.index ?? 0);
+                                            return (
+                                              <div key={mo.index} className="space-y-0.5">
+                                                <div className="flex items-center justify-between">
+                                                  <span className={`text-[10px] flex items-center gap-1.5 ${mIsWinner ? "font-semibold" : "text-text-secondary"}`} style={mIsWinner ? { color: mColor } : undefined}>
+                                                    <span className="w-1.5 h-1.5 rounded-full shrink-0 inline-block" style={{ backgroundColor: mColor }} />
+                                                    {mIsWinner && (isTied ? "⚖ " : "✓ ")}
+                                                    {mo.label}
+                                                  </span>
+                                                  <span className="text-[10px] font-mono text-text-muted whitespace-nowrap shrink-0">
+                                                    {isFinalized ? ballotsToZEC(mValue) : `${mShares} share${mShares !== 1 ? "s" : ""}`}
+                                                  </span>
+                                                </div>
+                                                <div className="h-1 bg-surface-3 rounded-full overflow-hidden">
+                                                  <div
+                                                    className="h-full rounded-full transition-all duration-500"
+                                                    style={{ width: `${Math.max(mBar > 0 ? 2 : 0, mPct)}%`, backgroundColor: mColor, opacity: 0.7 }}
+                                                  />
+                                                </div>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    );
+                                  }
+
+                                  const { opt } = item;
+                                  const shares = Number(opt.ballot_count ?? 0);
+                                  const value = Number(opt.total_value ?? 0);
+                                  const barValue = isFinalized ? value : shares;
+                                  const pct = (barValue / maxVal) * 100;
+                                  const isWinner = winnerIndices.has(opt.index ?? 0);
+
+                                  return (
+                                    <div key={item.key} className="space-y-0.5">
+                                      <div className="flex items-center justify-between">
+                                        <span
+                                          className={`text-[11px] flex items-center gap-1.5 ${isWinner ? "font-semibold" : "text-text-secondary"}`}
+                                          style={isWinner ? { color: dColor } : undefined}
+                                        >
+                                          <span className="w-2 h-2 rounded-full shrink-0 inline-block" style={{ backgroundColor: dColor }} />
+                                          {isWinner && (isTied ? "⚖ " : "✓ ")}
+                                          {opt.label ?? `Option ${opt.index}`}
+                                        </span>
+                                        <span className="text-[11px] font-mono text-text-primary whitespace-nowrap shrink-0">
+                                          {isFinalized ? ballotsToZEC(value) : `${shares} share${shares !== 1 ? "s" : ""}`}
+                                        </span>
+                                      </div>
+                                      <div className="h-1.5 bg-surface-3 rounded-full overflow-hidden">
+                                        <div
+                                          className="h-full rounded-full transition-all duration-500"
+                                          style={{ width: `${Math.max(barValue > 0 ? 2 : 0, pct)}%`, backgroundColor: dColor, opacity: isWinner ? 1 : 0.6 }}
+                                        />
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            );
+                          })()}
 
                           {/* Total */}
                           {isFinalized && totalValue !== null && totalValue > 0 ? (

@@ -12,12 +12,19 @@ export interface ProposalMetadata {
   value: string;
 }
 
+export interface OptionGroup {
+  id: string;
+  label: string;
+  optionIds: string[];
+}
+
 export interface Proposal {
   id: string;
   title: string;
   description: string;
   type: ProposalType;
   options: ProposalOption[];
+  optionGroups: OptionGroup[];
   allowAbstain: boolean;
   metadata: ProposalMetadata[];
 }

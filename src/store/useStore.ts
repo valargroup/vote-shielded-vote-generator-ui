@@ -15,6 +15,7 @@ function makeBinaryProposal(title: string, description: string): Proposal {
       { id: uuidv4(), label: "Support" },
       { id: uuidv4(), label: "Oppose" },
     ],
+    optionGroups: [],
     allowAbstain: false,
     metadata: [],
   };
@@ -27,8 +28,69 @@ function makeMultiChoiceProposal(title: string, description: string, labels: str
     description,
     type: "multi-choice",
     options: labels.map((label) => ({ id: uuidv4(), label })),
+    optionGroups: [],
     allowAbstain: false,
     metadata: [],
+  };
+}
+
+function makeGroupedProposal(
+  title: string,
+  description: string,
+  options: string[],
+  groups: { label: string; memberIndices: number[] }[],
+): Proposal {
+  const opts = options.map((label) => ({ id: uuidv4(), label }));
+  return {
+    id: uuidv4(),
+    title,
+    description,
+    type: "multi-choice",
+    options: opts,
+    optionGroups: groups.map((g) => ({
+      id: uuidv4(),
+      label: g.label,
+      optionIds: g.memberIndices.map((i) => opts[i].id),
+    })),
+    allowAbstain: false,
+    metadata: [],
+  };
+}
+
+function createGroupedSampleProposals(): Proposal[] {
+  return [
+    makeGroupedProposal(
+      "Sprout Pool Sunset",
+      "When should the protocol disable v4 transactions (and therefore make Sprout funds inaccessible)?",
+      [
+        "Immediately upon NU7 activation date",
+        "One year following poll conclusion date",
+        "Two years following poll conclusion date",
+        "When quantum threat is imminent, and the Orchard pool transitions to recovery only",
+      ],
+      [{ label: "At a fixed date following poll conclusion", memberIndices: [1, 2] }]
+    ),
+  ];
+}
+
+function createGroupedSeedRound(): VotingRound {
+  const now = new Date().toISOString();
+  return {
+    id: uuidv4(),
+    name: "(SAMPLE) Grouped Voting — Sprout Sunset",
+    status: "draft",
+    proposals: createGroupedSampleProposals(),
+    settings: {
+      description:
+        "Demonstrates grouped option voting: sub-options under 'Fixed date' are tallied together before comparing against other camps.",
+      snapshotHeight: "",
+      endTime: "",
+      openUntilClosed: true,
+      defaultProposalType: "multi-choice",
+      defaultLabels: ["Option A", "Option B"],
+    },
+    createdAt: now,
+    updatedAt: now,
   };
 }
 
@@ -102,6 +164,7 @@ function createDefaultProposal(): Proposal {
       { id: uuidv4(), label: "Support" },
       { id: uuidv4(), label: "Oppose" },
     ],
+    optionGroups: [],
     allowAbstain: false,
     metadata: [],
   };
@@ -179,6 +242,14 @@ export function useStore() {
     return round;
   }, []);
 
+  const createGroupedSampleRound = useCallback(() => {
+    const round = createGroupedSeedRound();
+    setRounds((prev) => [round, ...prev]);
+    setActiveRoundId(round.id);
+    setActiveProposalId(round.proposals[0]?.id ?? null);
+    return round;
+  }, []);
+
   const deleteRound = useCallback(
     (id: string) => {
       setRounds((prev) => prev.filter((r) => r.id !== id));
@@ -203,12 +274,24 @@ export function useStore() {
         createdAt: now,
         updatedAt: now,
       };
-      // regenerate IDs
-      newRound.proposals = newRound.proposals.map((p) => ({
-        ...p,
-        id: uuidv4(),
-        options: p.options.map((o) => ({ ...o, id: uuidv4() })),
-      }));
+      newRound.proposals = newRound.proposals.map((p) => {
+        const oldToNew = new Map<string, string>();
+        const newOptions = p.options.map((o) => {
+          const newId = uuidv4();
+          oldToNew.set(o.id, newId);
+          return { ...o, id: newId };
+        });
+        return {
+          ...p,
+          id: uuidv4(),
+          options: newOptions,
+          optionGroups: (p.optionGroups ?? []).map((g) => ({
+            ...g,
+            id: uuidv4(),
+            optionIds: g.optionIds.map((oid) => oldToNew.get(oid) ?? oid),
+          })),
+        };
+      });
       setRounds((prev) => [newRound, ...prev]);
       setActiveRoundId(newRound.id);
     },
@@ -282,11 +365,22 @@ export function useStore() {
       const round = rounds.find((r) => r.id === roundId);
       const source = round?.proposals.find((p) => p.id === proposalId);
       if (!source) return;
+      const oldToNew = new Map<string, string>();
+      const newOptions = source.options.map((o) => {
+        const newId = uuidv4();
+        oldToNew.set(o.id, newId);
+        return { ...o, id: newId };
+      });
       const newProposal: Proposal = {
         ...structuredClone(source),
         id: uuidv4(),
         title: `${source.title} (copy)`,
-        options: source.options.map((o) => ({ ...o, id: uuidv4() })),
+        options: newOptions,
+        optionGroups: source.optionGroups.map((g) => ({
+          ...g,
+          id: uuidv4(),
+          optionIds: g.optionIds.map((oid) => oldToNew.get(oid) ?? oid),
+        })),
       };
       setRounds((prev) =>
         prev.map((r) =>
@@ -327,7 +421,7 @@ export function useStore() {
               { id: uuidv4(), label: "Option A" },
               { id: uuidv4(), label: "Option B" },
             ];
-      updateProposal(roundId, proposalId, { type, options: defaultOptions });
+      updateProposal(roundId, proposalId, { type, options: defaultOptions, optionGroups: [] });
     },
     [updateProposal]
   );
@@ -343,6 +437,7 @@ export function useStore() {
     setActiveProposalId,
     createRound,
     createSampleRound,
+    createGroupedSampleRound,
     updateRound,
     deleteRound,
     duplicateRound,
