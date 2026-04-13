@@ -19,6 +19,8 @@ export interface Proposal {
   type: ProposalType;
   options: ProposalOption[];
   allowAbstain: boolean;
+  zipNumber: string;
+  forumURL: string;
   metadata: ProposalMetadata[];
 }
 
@@ -29,6 +31,7 @@ export interface RoundSettings {
   openUntilClosed: boolean;
   defaultProposalType: ProposalType;
   defaultLabels: [string, string];
+  discussionURL: string;
 }
 
 export interface VotingRound {

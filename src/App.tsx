@@ -206,7 +206,7 @@ function App() {
       if (p.allowAbstain) {
         options.push({ index: options.length, label: "Abstain" });
       }
-      return { id: i + 1, title: p.title, description: p.description, options };
+      return { id: i + 1, title: p.title, description: p.description, options, zipNumber: p.zipNumber || undefined, forumURL: p.forumURL || undefined };
     });
 
     setPublishStatus("publishing");
@@ -220,6 +220,7 @@ function App() {
         nullifierApiBase: nullifierApiBase(),
         description: round.settings.description || round.name,
         title: round.name,
+        discussionURL: round.settings.discussionURL || "",
       });
       if (result.code !== 0) {
         setPublishError(result.log || `Transaction failed with code ${result.code}`);

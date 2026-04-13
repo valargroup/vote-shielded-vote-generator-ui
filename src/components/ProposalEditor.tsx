@@ -229,6 +229,36 @@ export function ProposalEditor({ proposal, onUpdate, readonly = false }: Proposa
           )}
         </div>
 
+        {/* ZIP Number */}
+        <div>
+          <label className="block text-[11px] text-text-secondary mb-1">
+            ZIP Number
+          </label>
+          <input
+            type="text"
+            value={proposal.zipNumber}
+            onChange={(e) => onUpdate({ zipNumber: e.target.value })}
+            placeholder="e.g. ZIP-227"
+            readOnly={readonly}
+            className={`w-full px-3 py-2 bg-surface-2 border border-border-subtle rounded-lg text-xs text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent/50 ${readonly ? "opacity-60 cursor-default" : ""}`}
+          />
+        </div>
+
+        {/* Forum URL */}
+        <div>
+          <label className="block text-[11px] text-text-secondary mb-1">
+            Forum Discussion URL
+          </label>
+          <input
+            type="url"
+            value={proposal.forumURL}
+            onChange={(e) => onUpdate({ forumURL: e.target.value })}
+            placeholder="https://forum.zcashcommunity.com/..."
+            readOnly={readonly}
+            className={`w-full px-3 py-2 bg-surface-2 border border-border-subtle rounded-lg text-xs text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent/50 ${readonly ? "opacity-60 cursor-default" : ""}`}
+          />
+        </div>
+
         {/* Advanced */}
         <div className="border-t border-border-subtle pt-3">
           <button
