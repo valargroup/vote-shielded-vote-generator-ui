@@ -23,6 +23,8 @@ function generateExportJson(round: VotingRound) {
         type: p.type,
         options: p.options.map((o) => ({ id: o.id, label: o.label })),
         allowAbstain: p.allowAbstain,
+        zipNumber: p.zipNumber,
+        forumURL: p.forumURL,
         metadata: p.metadata,
       })),
     },

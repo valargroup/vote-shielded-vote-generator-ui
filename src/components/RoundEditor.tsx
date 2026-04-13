@@ -404,6 +404,24 @@ export function RoundEditor({ round, onUpdateName, onUpdateSettings, onNavigate,
             className={`w-full px-3 py-2 bg-surface-2 border border-border-subtle rounded-lg text-xs text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent/50 resize-none ${isReadonly ? "opacity-60 cursor-default" : ""}`}
           />
         </div>
+
+        {/* Discussion URL */}
+        <div>
+          <label className="block text-[11px] text-text-secondary mb-1">
+            Forum Discussion URL
+          </label>
+          <input
+            type="url"
+            value={round.settings.discussionURL}
+            onChange={(e) => onUpdateSettings({ discussionURL: e.target.value })}
+            placeholder="https://forum.zcashcommunity.com/..."
+            readOnly={isReadonly}
+            className={`w-full px-3 py-2 bg-surface-2 border border-border-subtle rounded-lg text-xs text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent/50 ${isReadonly ? "opacity-60 cursor-default" : ""}`}
+          />
+          <p className="text-[10px] text-text-muted mt-1">
+            Link to the forum thread for the overall vote. Shown in the iOS poll description.
+          </p>
+        </div>
     </div>
   );
 }

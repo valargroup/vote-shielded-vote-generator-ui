@@ -16,6 +16,8 @@ function makeBinaryProposal(title: string, description: string): Proposal {
       { id: uuidv4(), label: "Oppose" },
     ],
     allowAbstain: false,
+    zipNumber: "",
+    forumURL: "",
     metadata: [],
   };
 }
@@ -28,6 +30,8 @@ function makeMultiChoiceProposal(title: string, description: string, labels: str
     type: "multi-choice",
     options: labels.map((label) => ({ id: uuidv4(), label })),
     allowAbstain: false,
+    zipNumber: "",
+    forumURL: "",
     metadata: [],
   };
 }
@@ -65,6 +69,7 @@ function createSeedRound(): VotingRound {
       openUntilClosed: true,
       defaultProposalType: "binary",
       defaultLabels: ["Support", "Oppose"],
+      discussionURL: "",
     },
     createdAt: now,
     updatedAt: now,
@@ -103,6 +108,8 @@ function createDefaultProposal(): Proposal {
       { id: uuidv4(), label: "Oppose" },
     ],
     allowAbstain: false,
+    zipNumber: "",
+    forumURL: "",
     metadata: [],
   };
 }
@@ -127,6 +134,7 @@ function createDefaultRound(name: string): VotingRound {
       openUntilClosed: true,
       defaultProposalType: "binary",
       defaultLabels: ["Support", "Oppose"],
+      discussionURL: "",
     },
     createdAt: now,
     updatedAt: now,

@@ -127,12 +127,14 @@ function encodeVoteOption(opt: { index: number; label: string }): ProtoWriter {
   return w;
 }
 
-// message Proposal { uint32 id = 1; string title = 2; string description = 3; repeated VoteOption options = 4; }
+// message Proposal { uint32 id = 1; string title = 2; string description = 3; repeated VoteOption options = 4; string zip_number = 5; string forum_url = 6; }
 function encodeProposal(p: {
   id: number;
   title: string;
   description: string;
   options: Array<{ index: number; label: string }>;
+  zipNumber?: string;
+  forumURL?: string;
 }): ProtoWriter {
   const w = ProtoWriter.create();
   if (p.id !== 0) w.uint32(8).uint32(p.id);                // field 1, wire 0
@@ -141,6 +143,8 @@ function encodeProposal(p: {
   for (const opt of p.options) {
     w.sub(4, encodeVoteOption(opt));                         // field 4, wire 2
   }
+  if (p.zipNumber) w.uint32(42).string(p.zipNumber);        // field 5, wire 2
+  if (p.forumURL) w.uint32(50).string(p.forumURL);          // field 6, wire 2
   return w;
 }
 
@@ -157,9 +161,12 @@ export interface CreateVotingSessionValue {
     title: string;
     description: string;
     options: Array<{ index: number; label: string }>;
+    zipNumber?: string;
+    forumURL?: string;
   }>;
   description: string;
   title: string;
+  discussionURL: string;
 }
 
 // message MsgCreateVotingSession { ... } — see sdk/proto/svote/v1/tx.proto
@@ -180,6 +187,7 @@ const MsgCreateVotingSessionProto = {
     }
     if (m.description !== "")          writer.uint32(74).string(m.description);          // 9 string
     if (m.title !== "")                writer.uint32(82).string(m.title);                // 10 string
+    if (m.discussionURL !== "")        writer.uint32(90).string(m.discussionURL);        // 11 string
     return writer;
   },
   decode(): CreateVotingSessionValue {
@@ -197,6 +205,7 @@ const MsgCreateVotingSessionProto = {
       proposals: object.proposals ?? [],
       description: object.description ?? "",
       title: object.title ?? "",
+      discussionURL: object.discussionURL ?? "",
     };
   },
 };
@@ -528,12 +537,15 @@ export async function createVotingSession(
     voteEndTime: number;
     description: string;
     title: string;
+    discussionURL: string;
     nullifierApiBase: string;
     proposals: Array<{
       id: number;
       title: string;
       description: string;
       options: Array<{ index: number; label: string }>;
+      zipNumber?: string;
+      forumURL?: string;
     }>;
   },
 ): Promise<BroadcastResult> {
@@ -562,6 +574,7 @@ export async function createVotingSession(
           proposals: params.proposals,
           description: params.description,
           title: params.title,
+          discussionURL: params.discussionURL,
         } satisfies CreateVotingSessionValue,
       },
     ],
