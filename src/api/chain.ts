@@ -201,7 +201,7 @@ export async function getVoteManager(): Promise<{ address: string }> {
 }
 
 export async function getHelperStatus(): Promise<HelperStatus> {
-  return fetchJson<HelperStatus>("/api/v1/status");
+  return fetchJson<HelperStatus>("/shielded-vote/v1/status");
 }
 
 export interface NullifierStatus {
