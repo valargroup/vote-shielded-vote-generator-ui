@@ -1,7 +1,7 @@
 // Vercel cron: probe each vote_server and remove unreachable ones.
 //
 // Runs on a schedule (see vercel.json crons). Also callable manually via GET.
-// Each server is probed with a request to /api/v1/status (helper server health).
+// Each server is probed with a request to /shielded-vote/v1/status (helper server health).
 // Servers that fail the probe are removed from the Edge Config voting-config.
 //
 // Required env vars:
@@ -35,7 +35,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 
 async function probeServer(url: string): Promise<boolean> {
   try {
-    const resp = await fetch(`${url}/api/v1/status`, {
+    const resp = await fetch(`${url}/shielded-vote/v1/status`, {
       signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
     });
     return resp.ok;
